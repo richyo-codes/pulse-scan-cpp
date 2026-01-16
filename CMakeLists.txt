@@ -31,12 +31,16 @@ endif()
 
 
 add_executable(pulsescan_cpp
+    src/core/app.cpp
     src/core/cli.cpp
     src/main.cpp
     src/core/logging.cpp
+    src/core/output.cpp
+    src/core/ping_loop.cpp
     src/net/icmp_packet.cpp
     src/core/resolve.cpp
     src/core/scan_runner.cpp
+    src/net/icmp_scan.cpp
     src/net/scan_tcp.cpp
     src/net/scan_udp.cpp
 )
