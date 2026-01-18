@@ -7,4 +7,7 @@
 #include <string>
 #include <vector>
 
-boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, ScanOptions opts);
+struct ScanStatus;
+
+boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, ScanOptions opts,
+                                       ScanStatus *status);

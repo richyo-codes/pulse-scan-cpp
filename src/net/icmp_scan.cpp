@@ -1,8 +1,10 @@
 #include "net/icmp_scan.h"
 
 #include "core/logging.h"
+#include "core/output.h"
 #include "core/resolve.h"
 #include "core/scan_utils.h"
+#include "core/status.h"
 #include "net/icmp_ping.h"
 
 #include <boost/asio/ip/tcp.hpp>
@@ -21,7 +23,8 @@ using asio::use_awaitable;
 boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hosts,
                                              ScanOptions opts,
                                              IcmpStateMap *last_state,
-                                             bool changes_only) {
+                                             bool changes_only,
+                                             ScanStatus *status) {
     auto executor = co_await asio::this_coro::executor;
     asio::io_context &io = static_cast<asio::io_context &>(executor.context());
     asio::ip::tcp::resolver resolver(io);
@@ -29,6 +32,15 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
     std::unordered_set<std::string> current_keys;
     const bool first_pass = !last_state || last_state->empty();
 
+    if (status) {
+        status->total_hosts.store(hosts.size());
+        status->completed_targets.store(0);
+        status->completed_hosts.store(0);
+    }
+
+    std::vector<std::pair<std::string, std::vector<asio::ip::address>>> targets;
+    targets.reserve(hosts.size());
+    std::uint64_t total = 0;
     for (const auto &host : hosts) {
         bool used_range = false;
         auto addresses = resolve_or_expand(host, resolver, opts, used_range);
@@ -38,6 +50,17 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
             }
             continue;
         }
+        total += addresses.size();
+        targets.emplace_back(host, std::move(addresses));
+    }
+    if (status) {
+        status->total_targets.store(total);
+    }
+
+    for (auto &target : targets) {
+        const auto &host = target.first;
+        const auto &addresses = target.second;
+        auto reverse_map = reverse_dns_map(resolver, addresses, opts);
 
         for (const auto &addr : addresses) {
             IcmpResult final_result{"down", "timeout"};
@@ -63,6 +86,10 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
                 co_return;
             }
 
+            if (status) {
+                status->completed_targets.fetch_add(1);
+            }
+
             auto result = final_result;
             if (opts.icmp_count > 1 && result.state == "down") {
                 result.detail = "timeout (" + std::to_string(opts.icmp_count) + "x)";
@@ -76,17 +103,22 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
                 if (first_pass || it == last_state->end() || it->second != current) {
                     if (!opts.open_only || result.state == "up") {
                         const char *prefix = (changes_only && !first_pass) ? "CHANGE " : "";
-                        std::cout << prefix << host << " " << format_address(addr)
+                        std::cout << prefix << host << " "
+                                  << format_address_with_reverse(addr, reverse_map)
                                   << " -> " << result.state << " (" << result.detail << ")\n";
                     }
                     (*last_state)[key] = current;
                 }
             } else {
                 if (!opts.open_only || result.state == "up") {
-                    std::cout << host << " " << format_address(addr) << " -> "
+                    std::cout << host << " "
+                              << format_address_with_reverse(addr, reverse_map) << " -> "
                               << result.state << " (" << result.detail << ")\n";
                 }
             }
+        }
+        if (status) {
+            status->completed_hosts.fetch_add(1);
         }
     }
 
@@ -108,13 +140,17 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
 }
 
 boost::asio::awaitable<void> icmp_ping_loop(const std::vector<std::string> &hosts,
-                                            ScanOptions opts) {
+                                            ScanOptions opts,
+                                            ScanStatus *status) {
     steady_timer timer(co_await asio::this_coro::executor);
     IcmpStateMap last_state;
 
     for (;;) {
         log_trace("icmp ping cycle start", opts.verbose);
-        co_await icmp_scan_hosts(hosts, opts, &last_state, true);
+        if (status) {
+            status->cycles.fetch_add(1);
+        }
+        co_await icmp_scan_hosts(hosts, opts, &last_state, true, status);
         log_trace("icmp ping cycle end", opts.verbose);
         timer.expires_after(opts.ping_interval);
         co_await timer.async_wait(use_awaitable);

@@ -60,6 +60,7 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
     bool icmp_ping = false;
     bool sandbox = false;
     int icmp_count = 1;
+    bool reverse_dns = false;
 
     app.add_option("host", hosts, "Target host(s) (ip or DNS)")
         ->required()
@@ -92,6 +93,7 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
     app.add_option("-c,--icmp-count", icmp_count,
                    "ICMP echo count per host (icmp mode)")
         ->capture_default_str();
+    app.add_flag("--reverse-dns", reverse_dns, "Resolve PTR records for target IPs");
     app.add_flag("--sandbox", sandbox, "Enable OS sandboxing (Landlock/Capsicum)");
     app.add_option("--interval", ping_interval_seconds,
                    "Ping interval in seconds (ping mode)")
@@ -134,6 +136,7 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
     opts.icmp_ping = icmp_ping;
     opts.sandbox = sandbox;
     opts.icmp_count = icmp_count;
+    opts.reverse_dns = reverse_dns;
 
     auto lower_mode = mode_name;
     std::transform(lower_mode.begin(), lower_mode.end(), lower_mode.begin(),

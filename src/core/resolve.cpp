@@ -1,6 +1,7 @@
 #include "core/resolve.h"
 
 #include "core/logging.h"
+#include "core/scan_utils.h"
 
 #include <boost/asio/ip/address.hpp>
 
@@ -154,4 +155,29 @@ std::vector<asio::ip::address> resolve_or_expand(const std::string &host,
         addresses.push_back(addr);
     }
     return addresses;
+}
+
+std::unordered_map<std::string, std::string> reverse_dns_map(
+    asio::ip::tcp::resolver &resolver,
+    const std::vector<asio::ip::address> &addresses,
+    const ScanOptions &opts) {
+    std::unordered_map<std::string, std::string> result;
+    if (!opts.reverse_dns) {
+        return result;
+    }
+
+    for (const auto &addr : addresses) {
+        const auto key = format_address(addr);
+        if (key == "<invalid>" || result.find(key) != result.end()) {
+            continue;
+        }
+        boost::system::error_code ec;
+        auto resolved = resolver.resolve(asio::ip::tcp::endpoint(addr, 0), ec);
+        if (ec || resolved.empty()) {
+            result[key] = "";
+            continue;
+        }
+        result[key] = resolved.begin()->host_name();
+    }
+    return result;
 }

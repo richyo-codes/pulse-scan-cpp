@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-# set(VCPKG_LIBRARY_LINKAGE static)
-# set(VCPKG_TARGET_TRIPET x64-windows-static)
-# set(VCPKG_INSTALL_OPTIONS --allow-unsupported)
-
 message("VCPKG_ROOT: $ENV{VCPKG_ROOT}")
 message("CMAKE_TOOLCHAIN_FILE: $ENV{CMAKE_TOOLCHAIN_FILE}")
 
@@ -17,6 +13,7 @@ endif()
 project(pulsescan_cpp LANGUAGES CXX)
 
 option(ENABLE_STACKTRACE "Enable Boost stacktrace logging" OFF)
+option(ENABLE_ASIO_SSL "Enable Boost.Asio SSL support" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,12 +34,14 @@ add_executable(pulsescan_cpp
     src/core/logging.cpp
     src/core/output.cpp
     src/core/ping_loop.cpp
+    src/core/status.cpp
     src/net/icmp_packet.cpp
     src/core/resolve.cpp
     src/core/scan_runner.cpp
     src/net/icmp_scan.cpp
     src/net/scan_tcp.cpp
     src/net/scan_udp.cpp
+    src/net/udp_probes.cpp
 )
 set_target_properties(pulsescan_cpp PROPERTIES OUTPUT_NAME "pulsescan-cpp")
 
@@ -58,17 +57,13 @@ else()
 endif()
 target_include_directories(pulsescan_cpp PRIVATE src)
 
-find_package(CURL REQUIRED)
-target_link_libraries(pulsescan_cpp PRIVATE CURL::libcurl)
-
-# this is heuristically generated, and may not be correct
-find_package(cpr CONFIG REQUIRED)
-target_link_libraries(pulsescan_cpp PRIVATE cpr::cpr)
-
 target_link_libraries(pulsescan_cpp PRIVATE Boost::asio CLI11::CLI11)
 if(ENABLE_STACKTRACE)
   target_link_libraries(pulsescan_cpp PRIVATE Boost::stacktrace_basic)
   target_compile_definitions(pulsescan_cpp PRIVATE ENABLE_STACKTRACE)
+endif()
+if(NOT ENABLE_ASIO_SSL)
+  target_compile_definitions(pulsescan_cpp PRIVATE BOOST_ASIO_DISABLE_SSL)
 endif()
 
 include(CTest)
@@ -79,16 +74,23 @@ if(BUILD_TESTING)
   add_executable(pulsescan_cpp_tests
       tests/test_network.cpp
       tests/test_parsing.cpp
+      tests/test_udp_probes.cpp
       src/core/cli.cpp
       src/core/logging.cpp
+      src/core/output.cpp
       src/core/resolve.cpp
+      src/core/status.cpp
       src/net/icmp_packet.cpp
+      src/net/udp_probes.cpp
   )
   target_include_directories(pulsescan_cpp_tests PRIVATE src)
   target_link_libraries(pulsescan_cpp_tests PRIVATE Boost::asio CLI11::CLI11 Catch2::Catch2WithMain)
   if(ENABLE_STACKTRACE)
     target_link_libraries(pulsescan_cpp_tests PRIVATE Boost::stacktrace_basic)
     target_compile_definitions(pulsescan_cpp_tests PRIVATE ENABLE_STACKTRACE)
+  endif()
+  if(NOT ENABLE_ASIO_SSL)
+    target_compile_definitions(pulsescan_cpp_tests PRIVATE BOOST_ASIO_DISABLE_SSL)
   endif()
   catch_discover_tests(pulsescan_cpp_tests)
 endif()

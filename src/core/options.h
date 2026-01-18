@@ -28,4 +28,5 @@ struct ScanOptions {
     bool icmp_ping{false};
     bool sandbox{false};
     int icmp_count{1};
+    bool reverse_dns{false};
 };

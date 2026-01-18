@@ -1,4 +1,5 @@
 #include "net/scan_udp.h"
+#include "net/udp_probes.h"
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -34,6 +35,15 @@ awaitable<ScanResult> scan_udp(const udp::endpoint endpoint, const ScanOptions &
         co_return result;
     }
 
+    // attempt improve port detection
+    boost::system::error_code connect_ec;
+    socket.connect(endpoint, connect_ec);
+    if (connect_ec) {
+        result.state = "error";
+        result.detail = "connect failed: " + connect_ec.message();
+        co_return result;
+    }
+
     bool timed_out = false;
     co_spawn(executor,
              [&socket, &timer, &timed_out]() -> awaitable<void> {
@@ -46,23 +56,27 @@ awaitable<ScanResult> scan_udp(const udp::endpoint endpoint, const ScanOptions &
              },
              detached);
 
-    // Fire an empty datagram; some services respond with a banner or echo.
     boost::system::error_code send_ec;
-    std::array<char, 1> payload{{0}};
-    co_await socket.async_send_to(asio::buffer(payload), endpoint,
-                                  redirect_error(use_awaitable, send_ec));
+    auto payload = udp_probe_payload(endpoint.port());
+    co_await socket.async_send(asio::buffer(payload),
+                               redirect_error(use_awaitable, send_ec));
     if (send_ec) {
         timer.cancel();
-        result.state = "error";
-        result.detail = "send failed: " + send_ec.message();
+        if (send_ec == asio::error::connection_refused ||
+            send_ec == asio::error::connection_reset) {
+            result.state = "closed";
+            result.detail = send_ec.message();
+        } else {
+            result.state = "error";
+            result.detail = "send failed: " + send_ec.message();
+        }
         co_return result;
     }
 
     std::array<char, 512> buf{};
-    udp::endpoint sender;
     boost::system::error_code recv_ec;
-    auto n = co_await socket.async_receive_from(asio::buffer(buf), sender,
-                                                redirect_error(use_awaitable, recv_ec));
+    auto n = co_await socket.async_receive(asio::buffer(buf),
+                                           redirect_error(use_awaitable, recv_ec));
     timer.cancel();
 
     if (!recv_ec && n > 0) {

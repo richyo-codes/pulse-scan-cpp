@@ -2,8 +2,6 @@
     "name": "pulsescan-cpp",
     "version": "1.0.0",
     "dependencies": [
-        "curl",
-        "cpr",
         "boost-asio",
         "cli11",
         "catch2"

@@ -14,6 +14,15 @@ TEST_CASE("expand_cidr_v4 expands /30", "[resolve]") {
     REQUIRE(addresses->back().to_string() == "192.168.1.3");
 }
 
+TEST_CASE("expand_cidr_v4 expands /24", "[resolve]") {
+    auto addresses = expand_cidr_v4("192.168.1.0/24");
+    REQUIRE(addresses.has_value());
+    REQUIRE(addresses->size() == 255);
+    REQUIRE(addresses->front().to_string() == "192.168.1.0");
+    REQUIRE(addresses->back().to_string() == "192.168.1.255");
+}
+
+
 TEST_CASE("expand_range_v4 expands dash range", "[resolve]") {
     auto addresses = expand_range_v4("192.168.1.50-52");
     REQUIRE(addresses.has_value());

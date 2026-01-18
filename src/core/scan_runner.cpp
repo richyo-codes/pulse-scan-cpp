@@ -1,4 +1,5 @@
 #include "core/scan_runner.h"
+#include "core/scan_runner_shared.h"
 
 #include "core/logging.h"
 #include "net/scan_tcp.h"
@@ -73,7 +74,10 @@ awaitable<void> run_scans(const std::string &host,
     }
     log_trace("scan start host=" + host + " ports=" + std::to_string(opts.ports.size()),
               opts.verbose);
+
+    // executor
     auto executor = co_await asio::this_coro::executor;
+
     std::queue<std::pair<asio::ip::address, int>> remaining_targets;
     for (const auto &addr : addresses) {
         for (int p : opts.ports) {
@@ -84,37 +88,49 @@ awaitable<void> run_scans(const std::string &host,
     steady_timer done_timer(executor);
     done_timer.expires_at(steady_timer::time_point::max());
 
+    // Shared state below assumes serialized handler execution.
+    // This is safe with a single-threaded io_context or when using a strand.
+    // If the executor runs on multiple threads without a strand, protect access.
     std::size_t inflight = 0;
 
-    std::function<void()> launch_next = [&]() {
-        while (inflight < opts.max_inflight && !remaining_targets.empty()) {
-            auto target = remaining_targets.front();
-            remaining_targets.pop();
-            ++inflight;
+    ScanShared shared{executor, opts, remaining_targets, inflight, on_result, host, done_timer};
+
+    std::function<void()> launch_next;
+    launch_next = [&shared, &launch_next]() {
+        while (shared.inflight < shared.opts.max_inflight &&
+               !shared.remaining_targets.empty()) {
+            auto target = shared.remaining_targets.front();
+            shared.remaining_targets.pop();
+            ++shared.inflight;
             const auto addr = target.first;
             const int port = target.second;
 
             co_spawn(
-                executor,
-                [&, addr, port]() -> awaitable<void> {
+                shared.executor,
+                [addr,
+                 port,
+                 &shared,
+                 &launch_next]() -> awaitable<void> {
                     try {
-                        auto res = co_await scan_one(port, addr, opts);
-                        safe_on_result(on_result, {host, addr, res});
+                        auto res = co_await scan_one(port, addr, shared.opts);
+                        safe_on_result(shared.on_result, {shared.host, addr, res});
                     } catch (const std::exception &e) {
                         ScanResult res;
                         res.port = port;
                         res.state = "error";
                         res.detail = e.what();
                         log_exception("Scan error", e);
-                        safe_on_result(on_result, {host, addr, res});
+                        safe_on_result(shared.on_result, {shared.host, addr, res});
                     }
-                    --inflight;
+                    --shared.inflight;
+
+                    // recursive lambda
                     launch_next();
-                    if (remaining_targets.empty() && inflight == 0) {
-                        done_timer.cancel();
+                    if (shared.remaining_targets.empty() && shared.inflight == 0) {
+                        shared.done_timer.cancel();
                     }
                 },
-                [=](std::exception_ptr eptr) {
+                [](std::exception_ptr eptr) {
                     if (!eptr) {
                         return;
                     }
