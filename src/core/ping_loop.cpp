@@ -80,12 +80,8 @@ boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, Sc
                     auto it = last_state.find(key);
                     if (first_pass || it == last_state.end() || it->second != current) {
                         if (should_report(record.result, opts.open_only)) {
-                            const char *prefix = first_pass ? "" : "CHANGE ";
-                            std::cout << prefix << record.host << " "
-                                      << format_address_with_reverse(record.addr, reverse_map)
-                                      << ":"
-                                      << record.result.port << " -> " << record.result.state
-                                      << " (" << record.result.detail << ")\n";
+                            emit_port_result(record, reverse_map, !first_pass, opts.mode,
+                                             opts.output_format);
                         }
                         last_state[key] = current;
                     }
@@ -99,8 +95,7 @@ boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, Sc
             for (auto it = last_state.begin(); it != last_state.end();) {
                 if (current_keys.find(it->first) == current_keys.end()) {
                     if (!opts.open_only) {
-                        std::cout << "CHANGE " << it->first
-                                  << " -> unavailable (no longer resolved)\n";
+                        emit_unavailable(it->first, true, opts.mode, opts.output_format);
                     }
                     it = last_state.erase(it);
                 } else {

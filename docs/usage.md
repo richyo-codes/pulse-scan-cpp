@@ -13,7 +13,7 @@ cmake --build build --config Release
 
 ## Basic Scan
 
-Scan a host with default ports and connect mode:
+Scan a host with default ports and connect mode (dev/service ports):
 
 ```bash
 ./build/pulsescan-cpp localhost
@@ -42,6 +42,14 @@ Scan multiple hosts:
 ```bash
 ./build/pulsescan-cpp localhost 127.0.0.1 ::1 -p 22,80
 ```
+
+JSON output (one JSON object per line):
+
+```bash
+./build/pulsescan-cpp localhost --output json
+```
+
+Default output (text) uses a report-style summary for one-shot scans.
 
 ## Ping Mode
 
@@ -72,9 +80,11 @@ sudo ./build/pulsescan-cpp 192.168.1.0/24 --icmp-ping -c 1
 
 - `host`: target host(s) (IP or DNS)
 - `-p, --ports`: comma list and ranges (example: `22,80,8000-8010`)
+- `--top-ports`: scan top N common ports from the built-in list (example: `--top-ports 20`)
 - `-t, --timeout`: per-connection timeout in seconds
 - `--max-inflight`: max concurrent attempts
 - `-m, --mode`: `connect`, `banner`, or `udp`
+- `--output`: output format (`text` or `json`)
 - `--banner-timeout`: banner wait timeout in seconds
 - `--banner-bytes`: max banner bytes
 - `--ping`: enable ping mode
@@ -86,4 +96,28 @@ sudo ./build/pulsescan-cpp 192.168.1.0/24 --icmp-ping -c 1
 - `-6`: IPv6 only
 - `--icmp-ping`: ICMP echo ping mode
 - `-c, --icmp-count`: ICMP echo count per host
-- `--sandbox`: enable OS sandboxing (Landlock/Capsicum)
+- `--reverse-dns`: resolve PTR records for target IPs
+- `--sandbox`: enable OS sandboxing (Landlock/Capsicum, default on)
+- `--no-sandbox`: disable OS sandboxing
+
+## Bash Completion
+
+Install completion (after `cmake --install`):
+
+```bash
+sudo cp scripts/completions/pulsescan-cpp.bash /usr/share/bash-completion/completions/pulsescan-cpp
+```
+
+Enable in your shell:
+
+```bash
+source /usr/share/bash-completion/completions/pulsescan-cpp
+```
+
+## Default Ports
+
+When `--ports` is not specified, the scanner uses a built-in set of development and service ports:
+
+```
+22,80,443,3000,3001,3002,4000,4200,5000,5001,5173,5432,5672,6379,8000,8080,8081,8082,8443,9000,9090,9092,9200,9300,11211,15672,2181,27017,3306,6006,9222,9229
+```

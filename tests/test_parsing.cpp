@@ -2,9 +2,14 @@
 
 #include "core/cli.h"
 #include "net/icmp_packet.h"
+#include "core/output.h"
 #include "core/resolve.h"
 
+#include <algorithm>
+#include <unordered_map>
 #include <vector>
+
+#include <boost/asio/ip/address.hpp>
 
 TEST_CASE("expand_cidr_v4 expands /30", "[resolve]") {
     auto addresses = expand_cidr_v4("192.168.1.0/30");
@@ -80,4 +85,41 @@ TEST_CASE("cli rejects icmp with port options", "[cli]") {
     const char *argv[] = {"pulsescan-cpp", "--icmp-ping", "example.com", "-p", "80"};
     int rc = parse_cli(5, const_cast<char **>(argv), opts, hosts);
     REQUIRE(rc != 0);
+}
+
+TEST_CASE("cli uses default dev ports when none specified", "[cli]") {
+    ScanOptions opts;
+    std::vector<std::string> hosts;
+    const char *argv[] = {"pulsescan-cpp", "example.com"};
+    int rc = parse_cli(2, const_cast<char **>(argv), opts, hosts);
+    REQUIRE(rc == 0);
+    REQUIRE(!opts.ports.empty());
+    REQUIRE(std::find(opts.ports.begin(), opts.ports.end(), 22) != opts.ports.end());
+    REQUIRE(std::find(opts.ports.begin(), opts.ports.end(), 80) != opts.ports.end());
+    REQUIRE(std::find(opts.ports.begin(), opts.ports.end(), 443) != opts.ports.end());
+}
+
+TEST_CASE("cli accepts top ports option", "[cli]") {
+    ScanOptions opts;
+    std::vector<std::string> hosts;
+    const char *argv[] = {"pulsescan-cpp", "example.com", "--top-ports", "5"};
+    int rc = parse_cli(4, const_cast<char **>(argv), opts, hosts);
+    REQUIRE(rc == 0);
+    REQUIRE(opts.ports.size() == 5);
+}
+
+TEST_CASE("cli accepts json output format", "[cli]") {
+    ScanOptions opts;
+    std::vector<std::string> hosts;
+    const char *argv[] = {"pulsescan-cpp", "example.com", "--output", "json"};
+    int rc = parse_cli(4, const_cast<char **>(argv), opts, hosts);
+    REQUIRE(rc == 0);
+    REQUIRE(opts.output_format == OutputFormat::Json);
+}
+
+TEST_CASE("format_address_with_reverse uses map when present", "[output]") {
+    std::unordered_map<std::string, std::string> reverse_map;
+    reverse_map["127.0.0.1"] = "localhost";
+    auto addr = boost::asio::ip::make_address("127.0.0.1");
+    REQUIRE(format_address_with_reverse(addr, reverse_map) == "127.0.0.1 (localhost)");
 }

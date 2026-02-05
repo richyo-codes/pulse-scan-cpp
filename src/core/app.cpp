@@ -6,6 +6,7 @@
 #include "core/ping_loop.h"
 #include "core/resolve.h"
 #include "core/scan_runner.h"
+#include "core/scan_utils.h"
 #include "core/status.h"
 #include "net/icmp_scan.h"
 #include "platform/sandbox.h"
@@ -21,6 +22,7 @@
 #include <csignal>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace asio = boost::asio;
@@ -66,21 +68,34 @@ awaitable<void> run_port_scans(const std::vector<std::string> &hosts, ScanOption
         const auto &addresses = target.second;
         auto reverse_map = reverse_dns_map(resolver, addresses, opts);
 
+        std::unordered_map<std::string, std::vector<ScanResult>> results_by_addr;
         co_await run_scans(
             host, addresses, opts,
             [&](const ScanRecord &record) {
                 if (status) {
                     status->completed_targets.fetch_add(1);
                 }
-                if (!should_report(record.result, opts.open_only)) {
+                if (opts.output_format == OutputFormat::Json) {
+                    if (!should_report(record.result, opts.open_only)) {
+                        return;
+                    }
+                    emit_port_result(record, reverse_map, false, opts.mode, opts.output_format);
                     return;
                 }
-                std::cout << record.host << " "
-                          << format_address_with_reverse(record.addr, reverse_map) << ":"
-                          << record.result.port << " -> "
-                          << record.result.state << " ("
-                          << record.result.detail << ")\n";
+                const auto key = format_address(record.addr);
+                results_by_addr[key].push_back(record.result);
             });
+        if (opts.output_format == OutputFormat::Text) {
+            for (const auto &addr : addresses) {
+                const auto key = format_address(addr);
+                auto it = results_by_addr.find(key);
+                if (it == results_by_addr.end()) {
+                    continue;
+                }
+                emit_scan_report(host, addr, it->second, reverse_map, opts.mode,
+                                 opts.open_only);
+            }
+        }
         if (status) {
             status->completed_hosts.fetch_add(1);
         }
@@ -101,10 +116,16 @@ int run_app(int argc, char **argv) {
     if (opts.sandbox) {
         std::string message;
         SandboxStatus status = apply_sandbox(opts, hosts, message);
-        if (!message.empty()) {
+        
+        if (opts.verbose && !message.empty()) {
             std::cerr << message << "\n";
         }
+
         if (status == SandboxStatus::Failed) {
+            if (!message.empty()) {
+                std::cerr << message << "\n";
+            }
+
             return 1;
         }
     }

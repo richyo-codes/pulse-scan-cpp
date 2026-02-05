@@ -1,4 +1,5 @@
 #include "core/cli.h"
+#include "core/ports.h"
 
 #include <CLI/CLI.hpp>
 
@@ -46,11 +47,13 @@ std::vector<int> parse_ports(const std::string &input) {
 int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string> &hosts) {
     CLI::App app{"Coroutine-based async port scanner (no raw sockets)"};
 
-    std::string port_list = "80,443,8080";
+    const auto default_ports = default_dev_ports();
+    std::string port_list;
     double timeout_seconds = 1.0;
     double banner_timeout_seconds = 0.5;
     double ping_interval_seconds = 1.0;
     std::string mode_name = "connect";
+    std::string output_format = "text";
     bool ping_mode = false;
     bool open_only = false;
     bool debug_dns = false;
@@ -58,8 +61,9 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
     bool ipv4_only = false;
     bool ipv6_only = false;
     bool icmp_ping = false;
-    bool sandbox = false;
+    bool sandbox = true;
     int icmp_count = 1;
+    int top_ports_count = 0;
     bool reverse_dns = false;
 
     app.add_option("host", hosts, "Target host(s) (ip or DNS)")
@@ -67,7 +71,7 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
         ->expected(-1);
     auto *ports_opt = app.add_option("-p,--ports", port_list,
                    "Ports to scan (comma list and ranges, e.g. 22,80,8000-8010)")
-        ->capture_default_str();
+        ->default_str(port_list_to_string(default_ports));
     app.add_option("-t,--timeout", timeout_seconds, "Per-connection timeout in seconds")
         ->capture_default_str();
     app.add_option("--max-inflight", opts.max_inflight,
@@ -75,6 +79,9 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
         ->capture_default_str();
     auto *mode_opt = app.add_option("-m,--mode", mode_name, "Scan mode: connect, banner, udp")
         ->check(CLI::IsMember({"connect", "banner", "udp"}, CLI::ignore_case))
+        ->capture_default_str();
+    app.add_option("--output", output_format, "Output format: text or json")
+        ->check(CLI::IsMember({"text", "json"}, CLI::ignore_case))
         ->capture_default_str();
     auto *banner_timeout_opt = app.add_option("--banner-timeout", banner_timeout_seconds,
                    "Banner wait timeout in seconds (banner mode)")
@@ -93,8 +100,12 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
     app.add_option("-c,--icmp-count", icmp_count,
                    "ICMP echo count per host (icmp mode)")
         ->capture_default_str();
+    auto *top_ports_opt = app.add_option("--top-ports", top_ports_count,
+                   "Scan top N common ports from the built-in list")
+        ->default_str("off");
     app.add_flag("--reverse-dns", reverse_dns, "Resolve PTR records for target IPs");
-    app.add_flag("--sandbox", sandbox, "Enable OS sandboxing (Landlock/Capsicum)");
+    // app.add_flag("--sandbox", sandbox,
+    //              "Enable OS sandboxing (Landlock/Capsicum, default)");
     app.add_option("--interval", ping_interval_seconds,
                    "Ping interval in seconds (ping mode)")
         ->capture_default_str();
@@ -110,9 +121,23 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
         return 1;
     }
     if (icmp_ping) {
-        if (ports_opt->count() > 0 || mode_opt->count() > 0 ||
+        if (ports_opt->count() > 0 || top_ports_opt->count() > 0 || mode_opt->count() > 0 ||
             banner_timeout_opt->count() > 0 || banner_bytes_opt->count() > 0) {
             std::cerr << "--icmp-ping cannot be used with port scan options\n";
+            return 1;
+        }
+    }
+    if (top_ports_opt->count() > 0) {
+        if (top_ports_count < 1) {
+            std::cerr << "--top-ports must be >= 1\n";
+            return 1;
+        }
+        if (static_cast<std::size_t>(top_ports_count) > top_ports_limit()) {
+            std::cerr << "--top-ports max is " << top_ports_limit() << "\n";
+            return 1;
+        }
+        if (ports_opt->count() > 0) {
+            std::cerr << "--top-ports cannot be used with --ports\n";
             return 1;
         }
     }
@@ -121,7 +146,13 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
         return 1;
     }
 
-    opts.ports = parse_ports(port_list);
+    if (top_ports_count > 0) {
+        opts.ports = top_ports(static_cast<std::size_t>(top_ports_count));
+    } else if (ports_opt->count() > 0) {
+        opts.ports = parse_ports(port_list);
+    } else {
+        opts.ports = default_ports;
+    }
     opts.timeout = chrono::milliseconds(static_cast<int>(timeout_seconds * 1000));
     opts.banner_timeout =
         chrono::milliseconds(static_cast<int>(banner_timeout_seconds * 1000));
@@ -147,6 +178,15 @@ int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string>
         opts.mode = ScanMode::TcpBanner;
     } else {
         opts.mode = ScanMode::Udp;
+    }
+
+    auto lower_output = output_format;
+    std::transform(lower_output.begin(), lower_output.end(), lower_output.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (lower_output == "json") {
+        opts.output_format = OutputFormat::Json;
+    } else {
+        opts.output_format = OutputFormat::Text;
     }
 
     return 0;

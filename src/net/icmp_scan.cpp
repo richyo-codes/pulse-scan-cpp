@@ -102,18 +102,14 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
                 auto it = last_state->find(key);
                 if (first_pass || it == last_state->end() || it->second != current) {
                     if (!opts.open_only || result.state == "up") {
-                        const char *prefix = (changes_only && !first_pass) ? "CHANGE " : "";
-                        std::cout << prefix << host << " "
-                                  << format_address_with_reverse(addr, reverse_map)
-                                  << " -> " << result.state << " (" << result.detail << ")\n";
+                        emit_icmp_result(host, addr, result, reverse_map,
+                                         changes_only && !first_pass, opts.output_format);
                     }
                     (*last_state)[key] = current;
                 }
             } else {
                 if (!opts.open_only || result.state == "up") {
-                    std::cout << host << " "
-                              << format_address_with_reverse(addr, reverse_map) << " -> "
-                              << result.state << " (" << result.detail << ")\n";
+                    emit_icmp_result(host, addr, result, reverse_map, false, opts.output_format);
                 }
             }
         }
@@ -126,8 +122,7 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
         for (auto it = last_state->begin(); it != last_state->end();) {
             if (current_keys.find(it->first) == current_keys.end()) {
                 if (!opts.open_only) {
-                    std::cout << "CHANGE " << it->first
-                              << " -> unavailable (no longer resolved)\n";
+                    emit_unavailable(it->first, true, "icmp", opts.output_format);
                 }
                 it = last_state->erase(it);
             } else {

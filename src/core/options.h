@@ -11,6 +11,11 @@ enum class ScanMode {
     Udp
 };
 
+enum class OutputFormat {
+    Text,
+    Json
+};
+
 struct ScanOptions {
     std::vector<int> ports;
     std::chrono::milliseconds timeout{1000};
@@ -26,7 +31,8 @@ struct ScanOptions {
     bool ipv4_only{false};
     bool ipv6_only{false};
     bool icmp_ping{false};
-    bool sandbox{false};
+    bool sandbox{true};
     int icmp_count{1};
     bool reverse_dns{false};
+    OutputFormat output_format{OutputFormat::Text};
 };
