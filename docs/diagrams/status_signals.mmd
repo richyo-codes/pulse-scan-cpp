@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant User
+    participant Signals as signal_set (SIGINT/SIGTERM/SIGINFO)
+    participant Stdin as async_read_until('\n')
+    participant Status as ScanStatus
+    participant Format as format_status (core/status.cpp)
+    participant Err as stderr
+
+    par Signal path
+        User->>Signals: SIGINFO (FreeBSD) or SIGINT/SIGTERM
+        Signals->>Format: format_status(Status)
+        Format-->>Err: "progress: targets ... hosts ... cycles ..."
+        alt SIGINT/SIGTERM
+            Signals-->>Signals: stop io_context
+        end
+    and Enter key path
+        User->>Stdin: press Enter
+        Stdin->>Format: format_status(Status)
+        Format-->>Err: progress snapshot
+    end
+

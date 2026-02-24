@@ -103,13 +103,15 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
                 if (first_pass || it == last_state->end() || it->second != current) {
                     if (!opts.open_only || result.state == "up") {
                         emit_icmp_result(host, addr, result, reverse_map,
-                                         changes_only && !first_pass, opts.output_format);
+                                         changes_only && !first_pass, changes_only,
+                                         opts.output_format);
                     }
                     (*last_state)[key] = current;
                 }
             } else {
                 if (!opts.open_only || result.state == "up") {
-                    emit_icmp_result(host, addr, result, reverse_map, false, opts.output_format);
+                    emit_icmp_result(host, addr, result, reverse_map, false, false,
+                                     opts.output_format);
                 }
             }
         }
@@ -122,7 +124,7 @@ boost::asio::awaitable<void> icmp_scan_hosts(const std::vector<std::string> &hos
         for (auto it = last_state->begin(); it != last_state->end();) {
             if (current_keys.find(it->first) == current_keys.end()) {
                 if (!opts.open_only) {
-                    emit_unavailable(it->first, true, "icmp", opts.output_format);
+                    emit_unavailable(it->first, true, changes_only, "icmp", opts.output_format);
                 }
                 it = last_state->erase(it);
             } else {

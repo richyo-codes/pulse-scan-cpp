@@ -1,0 +1,5 @@
+module(
+    name = "pulsescan_cpp",
+    version = "1.0.0",
+)
+

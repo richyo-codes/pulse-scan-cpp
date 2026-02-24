@@ -4,6 +4,8 @@
 
 #include <sys/capsicum.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #include <cerrno>
 #include <cstring>
@@ -29,7 +31,8 @@ SandboxStatus apply_sandbox(const ScanOptions &, const std::vector<std::string> 
         }
     }
 
-    if (cap_getmode() == 1) {
+    u_int cap_mode = 0;
+    if (cap_getmode(&cap_mode) == 0 && cap_mode == 1) {
         message = "Capsicum already enabled";
         return SandboxStatus::Applied;
     }

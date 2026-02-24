@@ -31,6 +31,7 @@ void emit_scan_report(const std::string &host,
 void emit_port_result(const ScanRecord &record,
                       const std::unordered_map<std::string, std::string> &reverse_map,
                       bool is_change,
+                      bool include_change,
                       ScanMode mode,
                       OutputFormat format);
 void emit_icmp_result(const std::string &host,
@@ -38,12 +39,15 @@ void emit_icmp_result(const std::string &host,
                       const IcmpResult &result,
                       const std::unordered_map<std::string, std::string> &reverse_map,
                       bool is_change,
+                      bool include_change,
                       OutputFormat format);
 void emit_unavailable(const std::string &key,
                       bool is_change,
+                      bool include_change,
                       const std::string &mode,
                       OutputFormat format);
 void emit_unavailable(const std::string &key,
                       bool is_change,
+                      bool include_change,
                       ScanMode mode,
                       OutputFormat format);

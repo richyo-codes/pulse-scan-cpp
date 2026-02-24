@@ -79,7 +79,8 @@ awaitable<void> run_port_scans(const std::vector<std::string> &hosts, ScanOption
                     if (!should_report(record.result, opts.open_only)) {
                         return;
                     }
-                    emit_port_result(record, reverse_map, false, opts.mode, opts.output_format);
+                    emit_port_result(record, reverse_map, false, false, opts.mode,
+                                     opts.output_format);
                     return;
                 }
                 const auto key = format_address(record.addr);

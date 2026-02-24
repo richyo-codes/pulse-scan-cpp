@@ -22,7 +22,7 @@ TEST_CASE("expand_cidr_v4 expands /30", "[resolve]") {
 TEST_CASE("expand_cidr_v4 expands /24", "[resolve]") {
     auto addresses = expand_cidr_v4("192.168.1.0/24");
     REQUIRE(addresses.has_value());
-    REQUIRE(addresses->size() == 255);
+    REQUIRE(addresses->size() == 256);
     REQUIRE(addresses->front().to_string() == "192.168.1.0");
     REQUIRE(addresses->back().to_string() == "192.168.1.255");
 }

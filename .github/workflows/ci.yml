@@ -44,10 +44,65 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      # - name: Test
-      #   run: ctest --test-dir build --output-on-failure
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 120
 
-  build-rpm:
+  build-linux-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute git version
+        run: |
+          GIT_DESCRIBE="$(git describe --tags --always --dirty | tr '/ ' '--')"
+          echo "GIT_DESCRIBE=${GIT_DESCRIBE}" >> "${GITHUB_ENV}"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential pkg-config
+
+      - name: Ensure vcpkg directories
+        run: |
+          mkdir -p /tmp/vcpkg-downloads
+          mkdir -p /tmp/vcpkg-cache
+          echo "VCPKG_DOWNLOADS=/tmp/vcpkg-downloads" >> "${GITHUB_ENV}"
+          echo "VCPKG_BINARY_SOURCES=clear;files,/tmp/vcpkg-cache,readwrite" >> "${GITHUB_ENV}"
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 84bab45d415d22042bd0b9081aea57f362da3f35
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_MAKE_PROGRAM=ninja
+          -DPULSECAN_USE_VCPKG=ON
+          -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+          -DBUILD_TESTING=OFF
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Stage linux x64 static binary
+        run: |
+          cp build/pulsescan-cpp "build/pulsescan-${GIT_DESCRIBE}-linux-x64-static"
+          ls -lh "build/pulsescan-${GIT_DESCRIBE}-linux-x64-static"
+          stat -c '%n %s bytes' "build/pulsescan-${GIT_DESCRIBE}-linux-x64-static"
+
+      - name: Upload linux x64 static binary
+        uses: richnetdesign/git-artifact-upload@v1
+        with:
+          name: pulsescan-linux-x64-static-${{ env.GIT_DESCRIBE }}
+          path: build/pulsescan-*-linux-x64-static
+
+  build-rpm-system:
     runs-on: ubuntu-latest
     container:
       image: fedora:43
@@ -57,26 +112,234 @@ jobs:
           dnf install -y \
             gcc-c++ cmake ninja-build pkgconf-pkg-config \
             boost-devel cli11-devel catch2-devel \
-            rpm-build git
+            rpm-build git nodejs
 
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Compute git version
+        run: |
+          GIT_DESCRIBE="$(git describe --tags --always --dirty | tr '/ ' '--')"
+          echo "GIT_DESCRIBE=${GIT_DESCRIBE}" >> "${GITHUB_ENV}"
+
       - name: Configure
         run: >
           cmake -S . -B build
+          -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_MAKE_PROGRAM=ninja
           -DPULSECAN_USE_VCPKG=OFF
           -DBUILD_TESTING=OFF
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build --config Release
 
       - name: Package (RPM)
-        run: cpack --config build/CPackConfig.cmake -G RPM
+        run: cpack --config build/CPackConfig.cmake -G RPM -B build/packages
 
-      - name: Upload RPM
-        uses: actions/upload-artifact@v4
+      - name: Rename RPM with git version (system)
+        run: |
+          for f in build/packages/*.rpm; do
+            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-system.rpm"
+          done
+
+      - name: Show RPM size (system)
+        run: |
+          ls -lh build/packages/*.rpm
+          stat -c '%n %s bytes' build/packages/*.rpm
+
+      - name: Upload RPM (system)
+        uses: richnetdesign/git-artifact-upload@v1
         with:
-          name: pulsescan-cpp-rpm
-          path: build/*.rpm
+          name: pulsescan-rpm-system-f43-${{ env.GIT_DESCRIBE }}
+          path: build/packages/*.rpm
+
+  build-rpm-static:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            gcc-c++ cmake ninja-build pkgconf-pkg-config \
+            rpm-build git nodejs curl zip unzip tar
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute git version
+        run: |
+          GIT_DESCRIBE="$(git describe --tags --always --dirty | tr '/ ' '--')"
+          echo "GIT_DESCRIBE=${GIT_DESCRIBE}" >> "${GITHUB_ENV}"
+
+      - name: Ensure vcpkg directories
+        run: |
+          mkdir -p /tmp/vcpkg-downloads
+          mkdir -p /tmp/vcpkg-cache
+          echo "VCPKG_DOWNLOADS=/tmp/vcpkg-downloads" >> "${GITHUB_ENV}"
+          echo "VCPKG_BINARY_SOURCES=clear;files,/tmp/vcpkg-cache,readwrite" >> "${GITHUB_ENV}"
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 84bab45d415d22042bd0b9081aea57f362da3f35
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_MAKE_PROGRAM=ninja
+          -DPULSECAN_USE_VCPKG=ON
+          -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+          -DBUILD_TESTING=OFF
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package (RPM static)
+        run: cpack --config build/CPackConfig.cmake -G RPM -B build/packages
+
+      - name: Rename RPM with git version (static)
+        run: |
+          for f in build/packages/*.rpm; do
+            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-static.rpm"
+          done
+
+      - name: Show RPM size (static)
+        run: |
+          ls -lh build/packages/*.rpm
+          stat -c '%n %s bytes' build/packages/*.rpm
+
+      - name: Upload RPM (static)
+        uses: richnetdesign/git-artifact-upload@v1
+        with:
+          name: pulsescan-rpm-static-${{ env.GIT_DESCRIBE }}
+          path: build/packages/*.rpm
+
+  build-deb-system:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Ubuntu version tag
+        run: |
+          source /etc/os-release
+          UBUNTU_TAG="ubuntu$(echo "${VERSION_ID:-0}" | tr -d '.')"
+          echo "UBUNTU_VERSION_TAG=${UBUNTU_TAG}" >> "${GITHUB_ENV}"
+
+      - name: Compute git version
+        run: |
+          GIT_DESCRIBE="$(git describe --tags --always --dirty | tr '/ ' '--')"
+          echo "GIT_DESCRIBE=${GIT_DESCRIBE}" >> "${GITHUB_ENV}"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build build-essential pkg-config dpkg-dev \
+            libboost-system-dev libcli11-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_MAKE_PROGRAM=ninja
+          -DPULSECAN_USE_VCPKG=OFF
+          -DBUILD_TESTING=OFF
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package (DEB)
+        run: cpack --config build/CPackConfig.cmake -G DEB -B build/packages
+
+      - name: Rename DEB with git version (system)
+        run: |
+          for f in build/packages/*.deb; do
+            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-system.deb"
+          done
+
+      - name: Show DEB size (system)
+        run: |
+          ls -lh build/packages/*.deb
+          stat -c '%n %s bytes' build/packages/*.deb
+
+      - name: Upload DEB (system)
+        uses: richnetdesign/git-artifact-upload@v1
+        with:
+          name: pulsescan-deb-system-${{ env.UBUNTU_VERSION_TAG }}-${{ env.GIT_DESCRIBE }}
+          path: build/packages/*.deb
+
+  build-deb-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute git version
+        run: |
+          GIT_DESCRIBE="$(git describe --tags --always --dirty | tr '/ ' '--')"
+          echo "GIT_DESCRIBE=${GIT_DESCRIBE}" >> "${GITHUB_ENV}"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build build-essential pkg-config dpkg-dev
+
+      - name: Ensure vcpkg directories
+        run: |
+          mkdir -p /tmp/vcpkg-downloads
+          mkdir -p /tmp/vcpkg-cache
+          echo "VCPKG_DOWNLOADS=/tmp/vcpkg-downloads" >> "${GITHUB_ENV}"
+          echo "VCPKG_BINARY_SOURCES=clear;files,/tmp/vcpkg-cache,readwrite" >> "${GITHUB_ENV}"
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 84bab45d415d22042bd0b9081aea57f362da3f35
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_MAKE_PROGRAM=ninja
+          -DPULSECAN_USE_VCPKG=ON
+          -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+          -DBUILD_TESTING=OFF
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package (DEB static)
+        run: cpack --config build/CPackConfig.cmake -G DEB -B build/packages
+
+      - name: Rename DEB with git version (static)
+        run: |
+          for f in build/packages/*.deb; do
+            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-static.deb"
+          done
+
+      - name: Show DEB size (static)
+        run: |
+          ls -lh build/packages/*.deb
+          stat -c '%n %s bytes' build/packages/*.deb
+
+      - name: Upload DEB (static)
+        uses: richnetdesign/git-artifact-upload@v1
+        with:
+          name: pulsescan-deb-static-${{ env.GIT_DESCRIBE }}
+          path: build/packages/*.deb

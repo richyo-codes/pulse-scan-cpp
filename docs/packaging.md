@@ -48,6 +48,38 @@ Notes:
 - `boost-devel` provides Boost.System and headers.
 - If you do not build tests, `catch2-devel` is optional.
 
+### FreeBSD
+
+```bash
+sudo pkg update -f
+sudo pkg install -y cmake ninja pkgconf cli11 boost-all catch2
+```
+
+Notes:
+- This path uses system ports/packages for both CLI11 and Boost.
+- Configure with `-DPULSECAN_USE_VCPKG=OFF`.
+
+FreeBSD native static-ish third-party build (vcpkg):
+
+```bash
+sudo pkg update -f
+sudo pkg install -y cmake ninja pkgconf git curl zip unzip
+git clone https://github.com/microsoft/vcpkg.git
+./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+cmake -S . -B build \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPULSECAN_USE_VCPKG=ON \
+  -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_TARGET_TRIPLET=x64-freebsd \
+  -DBUILD_TESTING=OFF
+cmake --build build --config Release
+```
+
+Notes:
+- This links third-party deps from vcpkg static libs where available.
+- It is not fully static libc on FreeBSD; treat it as static-ish.
+
 ## Build and package with system deps
 
 ```bash
@@ -80,3 +112,10 @@ cmake --build build --target package
 - When using system packages, ensure your distro provides `cli11` and `catch2`.
   If not, use vcpkg or disable testing.
 - CPack requires `dpkg-deb` for DEB and `rpmbuild` for RPM on the build host.
+
+## CI RPM variants
+
+CI now produces two RPM variants:
+
+- `pulsescan-cpp-rpm-system`: Fedora-native packaging using system dependencies.
+- `pulsescan-cpp-rpm-static-vcpkg`: vcpkg-linked build (mostly static third-party libs).

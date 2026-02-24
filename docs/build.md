@@ -7,6 +7,16 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+## Testing
+
+Unit tests are enabled with `BUILD_TESTING=ON` and are deterministic by default.
+Environment-dependent DNS integration tests are off unless explicitly enabled:
+
+```bash
+cmake -S . -B build -DBUILD_TESTING=ON -DENABLE_INTEGRATION_TESTS=ON
+ctest --test-dir build --output-on-failure
+```
+
 ## Dependency Source (system vs vcpkg)
 
 By default, the build uses vcpkg if `VCPKG_ROOT` is set. To prefer system

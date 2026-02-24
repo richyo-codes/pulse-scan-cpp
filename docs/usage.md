@@ -85,6 +85,7 @@ sudo ./build/pulsescan-cpp 192.168.1.0/24 --icmp-ping -c 1
 - `--max-inflight`: max concurrent attempts
 - `-m, --mode`: `connect`, `banner`, or `udp`
 - `--output`: output format (`text` or `json`)
+- `--version`: print version information
 - `--banner-timeout`: banner wait timeout in seconds
 - `--banner-bytes`: max banner bytes
 - `--ping`: enable ping mode
@@ -98,7 +99,6 @@ sudo ./build/pulsescan-cpp 192.168.1.0/24 --icmp-ping -c 1
 - `-c, --icmp-count`: ICMP echo count per host
 - `--reverse-dns`: resolve PTR records for target IPs
 - `--sandbox`: enable OS sandboxing (Landlock/Capsicum, default on)
-- `--no-sandbox`: disable OS sandboxing
 
 ## Bash Completion
 

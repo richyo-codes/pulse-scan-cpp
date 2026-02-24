@@ -198,7 +198,7 @@ void emit_scan_report(const std::string &host,
         }
     }
     std::cout << report_header << "\n";
-    std::cout << "Host is up.\n";
+    //std::cout << "\n";
 
 
     std::vector<ScanResult> sorted = results;
@@ -218,6 +218,24 @@ void emit_scan_report(const std::string &host,
             filtered++;
         } else {
             errors++;
+        }
+    }
+
+    const bool has_open = open > 0;
+    const bool has_closed = closed > 0;
+    const bool has_filtered = filtered > 0;
+    const bool host_up = has_open || has_closed ||
+                         (mode == ScanMode::Udp && has_open);
+
+    if (!open_only) {
+        if (host_up) {
+            std::cout << "Host is up.\n";
+        } else if (has_filtered) {
+            std::cout << "Host seems down or filtered.\n";
+        } else if (errors > 0) {
+            std::cout << "Host status unknown (io errors).\n";
+        } else {
+            std::cout << "Host seems down.\n";
         }
     }
 
@@ -259,9 +277,20 @@ void emit_scan_report(const std::string &host,
     }
 
     const bool show_detail = (mode == ScanMode::TcpBanner);
-    const int port_width = 9;
-    const int state_width = 14;
-    const int service_width = 12;
+    std::size_t max_port = 0;
+    std::size_t max_state = std::string("STATE").size();
+    std::size_t max_service = std::string("SERVICE").size();
+    for (const auto &result : display) {
+        std::ostringstream port_label;
+        port_label << result.port << "/" << (mode == ScanMode::Udp ? "udp" : "tcp");
+        max_port = std::max(max_port, port_label.str().size());
+        max_state = std::max(max_state, result.state.size());
+        max_service = std::max(max_service,
+                               service_name_for_port(result.port, mode).size());
+    }
+    const int port_width = static_cast<int>(max_port + 2);
+    const int state_width = static_cast<int>(max_state + 2);
+    const int service_width = static_cast<int>(max_service + 2);
     std::ostringstream header_line;
     header_line << std::left << std::setw(port_width) << "PORT"
                 << std::left << std::setw(state_width) << "STATE"
@@ -296,6 +325,7 @@ void emit_scan_report(const std::string &host,
 void emit_port_result(const ScanRecord &record,
                       const std::unordered_map<std::string, std::string> &reverse_map,
                       bool is_change,
+                      bool include_change,
                       ScanMode mode,
                       OutputFormat format) {
     if (format == OutputFormat::Text) {
@@ -311,9 +341,11 @@ void emit_port_result(const ScanRecord &record,
     const auto reverse = reverse_dns_for(record.addr, reverse_map);
     std::ostringstream out;
     out << "{"
-        << "\"event\":\"result\""
-        << ",\"change\":" << (is_change ? "true" : "false")
-        << ",\"mode\":\"" << json_escape(mode_label(mode)) << "\""
+        << "\"event\":\"result\"";
+    if (include_change) {
+        out << ",\"change\":" << (is_change ? "true" : "false");
+    }
+    out << ",\"mode\":\"" << json_escape(mode_label(mode)) << "\""
         << ",\"host\":\"" << json_escape(record.host) << "\""
         << ",\"address\":\"" << json_escape(address) << "\""
         << ",\"reverse_dns\":\"" << json_escape(reverse) << "\""
@@ -329,6 +361,7 @@ void emit_icmp_result(const std::string &host,
                       const IcmpResult &result,
                       const std::unordered_map<std::string, std::string> &reverse_map,
                       bool is_change,
+                      bool include_change,
                       OutputFormat format) {
     if (format == OutputFormat::Text) {
         const char *prefix = is_change ? "CHANGE " : "";
@@ -341,9 +374,11 @@ void emit_icmp_result(const std::string &host,
     const auto reverse = reverse_dns_for(addr, reverse_map);
     std::ostringstream out;
     out << "{"
-        << "\"event\":\"result\""
-        << ",\"change\":" << (is_change ? "true" : "false")
-        << ",\"mode\":\"icmp\""
+        << "\"event\":\"result\"";
+    if (include_change) {
+        out << ",\"change\":" << (is_change ? "true" : "false");
+    }
+    out << ",\"mode\":\"icmp\""
         << ",\"host\":\"" << json_escape(host) << "\""
         << ",\"address\":\"" << json_escape(address) << "\""
         << ",\"reverse_dns\":\"" << json_escape(reverse) << "\""
@@ -356,6 +391,7 @@ void emit_icmp_result(const std::string &host,
 
 void emit_unavailable(const std::string &key,
                       bool is_change,
+                      bool include_change,
                       const std::string &mode,
                       OutputFormat format) {
     if (format == OutputFormat::Text) {
@@ -367,9 +403,11 @@ void emit_unavailable(const std::string &key,
     auto parsed = parse_key(key);
     std::ostringstream out;
     out << "{"
-        << "\"event\":\"unavailable\""
-        << ",\"change\":" << (is_change ? "true" : "false")
-        << ",\"mode\":\"" << json_escape(mode) << "\"";
+        << "\"event\":\"unavailable\"";
+    if (include_change) {
+        out << ",\"change\":" << (is_change ? "true" : "false");
+    }
+    out << ",\"mode\":\"" << json_escape(mode) << "\"";
     if (parsed) {
         out << ",\"host\":\"" << json_escape(parsed->host) << "\""
             << ",\"address\":\"" << json_escape(parsed->address) << "\""
@@ -385,7 +423,8 @@ void emit_unavailable(const std::string &key,
 
 void emit_unavailable(const std::string &key,
                       bool is_change,
+                      bool include_change,
                       ScanMode mode,
                       OutputFormat format) {
-    emit_unavailable(key, is_change, mode_label(mode), format);
+    emit_unavailable(key, is_change, include_change, mode_label(mode), format);
 }

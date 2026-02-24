@@ -80,7 +80,7 @@ boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, Sc
                     auto it = last_state.find(key);
                     if (first_pass || it == last_state.end() || it->second != current) {
                         if (should_report(record.result, opts.open_only)) {
-                            emit_port_result(record, reverse_map, !first_pass, opts.mode,
+                            emit_port_result(record, reverse_map, !first_pass, true, opts.mode,
                                              opts.output_format);
                         }
                         last_state[key] = current;
@@ -95,7 +95,7 @@ boost::asio::awaitable<void> ping_loop(const std::vector<std::string> &hosts, Sc
             for (auto it = last_state.begin(); it != last_state.end();) {
                 if (current_keys.find(it->first) == current_keys.end()) {
                     if (!opts.open_only) {
-                        emit_unavailable(it->first, true, opts.mode, opts.output_format);
+                        emit_unavailable(it->first, true, true, opts.mode, opts.output_format);
                     }
                     it = last_state.erase(it);
                 } else {

@@ -1,0 +1,34 @@
+sequenceDiagram
+    participant App as run_app
+    participant IcmpScan as icmp_scan_hosts / icmp_ping_loop
+    participant Once as icmp_ping_once (net/icmp_ping.cpp)
+    participant Sock as icmp::socket
+    participant Timer as steady_timer
+    participant Parse as parse_v4_echo_reply / parse_v6_echo_reply
+    participant Out as output
+
+    App->>IcmpScan: start ICMP mode
+    loop each host/address (and cycle in ping loop)
+        IcmpScan->>Once: icmp_ping_once(addr, opts)
+        Once->>Sock: open(v4/v6)
+        alt permission denied
+            Once-->>IcmpScan: error (root or CAP_NET_RAW hint)
+        else open ok
+            Once->>Sock: async_send_to(echo request id/seq)
+            Once->>Timer: arm timeout
+            loop until timeout or valid reply
+                Sock-->>Once: async_receive_from(...)
+                Once->>Parse: validate type/code/id/seq
+                alt valid echo reply
+                    Once-->>IcmpScan: up
+                else unrelated packet
+                    Note over Once: ignore and continue waiting
+                end
+            end
+            alt timeout
+                Once-->>IcmpScan: down (timeout)
+            end
+        end
+        IcmpScan->>Out: emit_icmp_result(...)
+    end
+

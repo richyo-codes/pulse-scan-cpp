@@ -68,7 +68,7 @@ TEST_CASE("resolve localhost", "[dns]") {
 
 TEST_CASE("resolve external hostname when enabled", "[dns][integration]") {
     if (!env_enabled("RUN_INTEGRATION_TESTS")) {
-        SKIP("set RUN_INTEGRATION_TESTS=1 to enable external DNS lookup");
+        SKIP("network tests disabled by default");
     }
 
     boost::asio::io_context io;
@@ -82,7 +82,7 @@ TEST_CASE("resolve external hostname when enabled", "[dns][integration]") {
 
 TEST_CASE("format_address handles resolved addresses when enabled", "[dns][integration]") {
     if (!env_enabled("RUN_INTEGRATION_TESTS")) {
-        SKIP("set RUN_INTEGRATION_TESTS=1 to enable external DNS lookup");
+        SKIP("network tests disabled by default");
     }
 
     boost::asio::io_context io;

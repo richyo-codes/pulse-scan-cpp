@@ -40,7 +40,7 @@ bool parse_v4_echo_reply(const std::uint8_t *data, std::size_t length, std::uint
         static_cast<std::uint16_t>(data[offset + 4] << 8 | data[offset + 5]);
     const std::uint16_t resp_seq =
         static_cast<std::uint16_t>(data[offset + 6] << 8 | data[offset + 7]);
-    return ntohs(resp_id) == id && ntohs(resp_seq) == seq;
+    return resp_id == id && resp_seq == seq;
 }
 
 bool parse_v6_echo_reply(const std::uint8_t *data, std::size_t length, std::uint16_t id,
@@ -63,5 +63,5 @@ bool parse_v6_echo_reply(const std::uint8_t *data, std::size_t length, std::uint
         static_cast<std::uint16_t>(data[offset + 4] << 8 | data[offset + 5]);
     const std::uint16_t resp_seq =
         static_cast<std::uint16_t>(data[offset + 6] << 8 | data[offset + 7]);
-    return ntohs(resp_id) == id && ntohs(resp_seq) == seq;
+    return resp_id == id && resp_seq == seq;
 }

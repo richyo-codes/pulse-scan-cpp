@@ -1,0 +1,36 @@
+name: Diagrams
+
+on:
+  push:
+    paths:
+      - "docs/diagrams/**/*.mmd"
+      - "scripts/render_diagrams.sh"
+      - ".github/workflows/diagrams.yml"
+  pull_request:
+    paths:
+      - "docs/diagrams/**/*.mmd"
+      - "scripts/render_diagrams.sh"
+      - ".github/workflows/diagrams.yml"
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Render Mermaid diagrams
+        run: ./scripts/render_diagrams.sh
+
+      - name: Upload rendered diagrams
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagrams-svg
+          path: docs/diagrams/rendered/*.svg
+

@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant User
+    participant Main as main.cpp
+    participant App as run_app (core/app.cpp)
+    participant CLI as parse_cli (core/cli.cpp)
+    participant Sandbox as apply_sandbox (platform/sandbox)
+    participant Resolve as resolve_or_expand (core/resolve.cpp)
+    participant Runner as run_scans (core/scan_runner.cpp)
+    participant Scan as scan_tcp/scan_udp (src/net)
+    participant Output as emit_scan_report/emit_port_result
+
+    User->>Main: pulsescan-cpp [hosts] [options]
+    Main->>App: run_app(argc, argv)
+    App->>CLI: parse_cli(...)
+    CLI-->>App: ScanOptions + host list
+    App->>Sandbox: apply_sandbox(opts, hosts)
+    Sandbox-->>App: status/message
+    loop each host
+        App->>Resolve: resolve_or_expand(host, resolver, opts)
+        Resolve-->>App: address list
+        App->>Runner: run_scans(host, addresses, opts, callback)
+        loop each address x port
+            Runner->>Scan: scan_one(...)
+            alt TCP connect/banner
+                Scan-->>Runner: ScanResult
+            else UDP
+                Scan-->>Runner: ScanResult
+            end
+            Runner-->>Output: callback(ScanRecord)
+        end
+    end
+    Output-->>User: text report or JSON lines
+

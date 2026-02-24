@@ -46,6 +46,7 @@ std::vector<int> parse_ports(const std::string &input) {
 
 int parse_cli(int argc, char **argv, ScanOptions &opts, std::vector<std::string> &hosts) {
     CLI::App app{"Coroutine-based async port scanner (no raw sockets)"};
+    app.set_version_flag("--version", std::string("pulsescan-cpp ") + PROJECT_VERSION);
 
     const auto default_ports = default_dev_ports();
     std::string port_list;
