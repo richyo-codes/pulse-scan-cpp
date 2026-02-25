@@ -23,14 +23,31 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
+
+      - name: Install Mermaid CLI dependency
+        run: npm install
+
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+
+      - name: Resolve Chromium path
+        run: |
+          CHROME_PATH="$(command -v chromium-browser || command -v chromium || command -v google-chrome-stable || command -v google-chrome)"
+          if [ -z "${CHROME_PATH}" ]; then
+            echo "Could not find Chromium/Chrome executable in PATH" >&2
+            exit 1
+          fi
+          echo "MERMAID_CHROME_PATH=${CHROME_PATH}" >> "${GITHUB_ENV}"
+          echo "Using MERMAID_CHROME_PATH=${CHROME_PATH}"
 
       - name: Render Mermaid diagrams
         run: ./scripts/render_diagrams.sh
 
       - name: Upload rendered diagrams
-        uses: actions/upload-artifact@v4
+        uses: richnetdesign/git-artifact-upload@v1
         with:
           name: diagrams-svg
           path: docs/diagrams/rendered/*.svg
-

@@ -1,26 +1,25 @@
 sequenceDiagram
     participant App as run_app
-    participant Loop as ping_loop (core/ping_loop.cpp)
+    participant PingLoop as ping_loop (core/ping_loop.cpp)
     participant Resolve as resolve_or_expand
     participant Runner as run_scans
     participant State as last_state map
     participant Out as emit_port_result / emit_unavailable
 
-    App->>Loop: ping_loop(hosts, opts, status)
+    App->>PingLoop: ping_loop(hosts, opts, status)
     loop every opts.ping_interval
-        Loop->>Resolve: resolve targets for current cycle
-        Resolve-->>Loop: addresses
-        Loop->>Runner: run_scans(..., callback)
-        Runner-->>Loop: ScanRecord stream
-        Loop->>State: compare current state vs previous
+        PingLoop->>Resolve: resolve targets for current cycle
+        Resolve-->>PingLoop: addresses
+        PingLoop->>Runner: run_scans(..., callback)
+        Runner-->>PingLoop: ScanRecord stream
+        PingLoop->>State: compare current state vs previous
         alt first pass or changed
-            Loop->>Out: emit_port_result(change=true/first)
+            PingLoop->>Out: emit_port_result(change=true/first)
         else unchanged
-            Note over Loop: No text output; JSON depends on filters
+            Note over PingLoop: No text output, JSON depends on filters
         end
-        Loop->>State: prune missing keys
+        PingLoop->>State: prune missing keys
         alt key disappeared
-            Loop->>Out: emit_unavailable(...)
+            PingLoop->>Out: emit_unavailable(...)
         end
     end
-

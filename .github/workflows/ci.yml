@@ -129,6 +129,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_MAKE_PROGRAM=ninja
           -DPULSECAN_USE_VCPKG=OFF
+          -DPULSECAN_BUILD_ID="${GIT_DESCRIBE}"
           -DBUILD_TESTING=OFF
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_CXX_COMPILER=g++
@@ -138,12 +139,6 @@ jobs:
 
       - name: Package (RPM)
         run: cpack --config build/CPackConfig.cmake -G RPM -B build/packages
-
-      - name: Rename RPM with git version (system)
-        run: |
-          for f in build/packages/*.rpm; do
-            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-system.rpm"
-          done
 
       - name: Show RPM size (system)
         run: |
@@ -194,6 +189,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_MAKE_PROGRAM=ninja
           -DPULSECAN_USE_VCPKG=ON
+          -DPULSECAN_BUILD_ID="${GIT_DESCRIBE}"
           -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
           -DBUILD_TESTING=OFF
           -DCMAKE_C_COMPILER=gcc
@@ -204,12 +200,6 @@ jobs:
 
       - name: Package (RPM static)
         run: cpack --config build/CPackConfig.cmake -G RPM -B build/packages
-
-      - name: Rename RPM with git version (static)
-        run: |
-          for f in build/packages/*.rpm; do
-            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-static.rpm"
-          done
 
       - name: Show RPM size (static)
         run: |
@@ -253,6 +243,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_MAKE_PROGRAM=ninja
           -DPULSECAN_USE_VCPKG=OFF
+          -DPULSECAN_BUILD_ID="${GIT_DESCRIBE}"
           -DBUILD_TESTING=OFF
           -DCMAKE_C_COMPILER=gcc
           -DCMAKE_CXX_COMPILER=g++
@@ -262,12 +253,6 @@ jobs:
 
       - name: Package (DEB)
         run: cpack --config build/CPackConfig.cmake -G DEB -B build/packages
-
-      - name: Rename DEB with git version (system)
-        run: |
-          for f in build/packages/*.deb; do
-            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-system.deb"
-          done
 
       - name: Show DEB size (system)
         run: |
@@ -316,6 +301,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_MAKE_PROGRAM=ninja
           -DPULSECAN_USE_VCPKG=ON
+          -DPULSECAN_BUILD_ID="${GIT_DESCRIBE}"
           -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
           -DBUILD_TESTING=OFF
           -DCMAKE_C_COMPILER=gcc
@@ -326,12 +312,6 @@ jobs:
 
       - name: Package (DEB static)
         run: cpack --config build/CPackConfig.cmake -G DEB -B build/packages
-
-      - name: Rename DEB with git version (static)
-        run: |
-          for f in build/packages/*.deb; do
-            mv "$f" "build/packages/pulsescan-${GIT_DESCRIBE}-static.deb"
-          done
 
       - name: Show DEB size (static)
         run: |

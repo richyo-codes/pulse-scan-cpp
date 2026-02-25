@@ -43,3 +43,16 @@
 
 /build
 /.cache
+
+# Node docs tooling
+/node_modules/
+
+# Bazel outputs
+/bazel-bin/
+/bazel-out/
+/bazel-testlogs/
+/bazel-*/
+/MODULE.bazel.lock
+
+# Rendered Mermaid artifacts (source .mmd files are tracked)
+/docs/diagrams/rendered/*.svg
